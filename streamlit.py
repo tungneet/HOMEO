@@ -1,11 +1,16 @@
 import streamlit as st
 import requests
+import openai
+import os
 
 # API endpoints
 BASE_URL = "https://2o02845p39.execute-api.ap-south-1.amazonaws.com/plane_BA"
 CHAT_API = f"{BASE_URL}/chat"
 HISTORY_API = f"{BASE_URL}/history"
 TEST_API = f"{BASE_URL}/test"
+
+# Set your OpenAI API Key
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # App settings
 st.set_page_config(page_title="German Homeopathy Clinic", layout="centered")
@@ -24,7 +29,21 @@ sidebar_choice = st.sidebar.radio(
 
 # Main area always shows Chat tab
 st.subheader("💬 ਕੰਪਾਊਂਡਰ ਨਾਲ ਗੱਲ ਕਰੋ।")
+
+# Text + STT input
 user_msg = st.text_area("ਤੁਹਾਡੀ ਤਬੀਅਤ ਬਾਰੇ ਇੱਥੇ ਲਿਖੋ।")
+
+st.markdown("**ਵਾਯਸ ਮੈਸਜ ਭੇਜੋ (Voice Input):**")
+audio_file = st.file_uploader("ਆਡੀਓ ਅੱਪਲੋਡ ਕਰੋ (MP3/WAV/M4A)", type=["mp3", "wav", "m4a"])
+
+if audio_file:
+    with st.spinner("Transcribing voice using Whisper..."):
+        try:
+            transcript = openai.Audio.transcribe("whisper-1", audio_file)
+            user_msg = transcript['text']
+            st.success(f"ਪਛਾਣਿਆ ਗਇਆ ਪਾਠ (Recognized Text): {user_msg}")
+        except Exception as e:
+            st.error(f"Voice recognition failed: {str(e)}")
 
 if st.button("Send Message"):
     if user_msg.strip():
