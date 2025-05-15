@@ -1,86 +1,59 @@
 import streamlit as st
 import requests
-import openai
-from streamlit_webrtc import webrtc_streamer, WebRtcMode, ClientSettings
-import av
+from audiorecorder import audiorecorder
 import tempfile
-import queue
+import soundfile as sf
+import openai
 
-# -------------------- CONFIG --------------------
+# OpenAI Whisper API key
+openai.api_key = st.secrets.get("OPENAI_API_KEY", "your-openai-key")
+
 # API endpoints
 BASE_URL = "https://2o02845p39.execute-api.ap-south-1.amazonaws.com/plane_BA"
 CHAT_API = f"{BASE_URL}/chat"
 HISTORY_API = f"{BASE_URL}/history"
 TEST_API = f"{BASE_URL}/test"
 
-# OpenAI API Key
-openai.api_key = st.secrets.get("OPENAI_API_KEY", "your-api-key-here")  # Replace or set via secrets
-
 # App settings
 st.set_page_config(page_title="German Homeopathy Clinic", layout="centered")
 st.markdown("<h1 style='text-align: center; color: green;'>German Homeopathy Clinic by Hardev Singh</h1>", unsafe_allow_html=True)
 
-# Session state
+# Persistent session state for current user
 if "current_user" not in st.session_state:
     st.session_state.current_user = "user_1234"
-if "user_msg" not in st.session_state:
-    st.session_state.user_msg = ""
 
-# -------------------- SIDEBAR NAV --------------------
+# Sidebar tabs (except chat)
 sidebar_choice = st.sidebar.radio(
     "Navigate",
     ("🧪 Connect to App", "👤 User Management", "📜 History"),
     index=0
 )
 
-# -------------------- MAIN CHAT --------------------
+# ---------- MAIN CHAT AREA ----------
 st.subheader("💬 ਕੰਪਾਊਂਡਰ ਨਾਲ ਗੱਲ ਕਰੋ।")
 
-# Microphone input section
-st.markdown("**ਮਾਈਕ ਰਾਹੀਂ ਗੱਲ ਕਰੋ (Speak using mic):**")
-
-audio_queue = queue.Queue()
-
-class AudioProcessor:
-    def __init__(self):
-        self.audio_buffer = b""
-
-    def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
-        pcm = frame.to_ndarray().tobytes()
-        audio_queue.put(pcm)
-        return frame
-
-webrtc_ctx = webrtc_streamer(
-    key="mic",
-    mode=WebRtcMode.SENDONLY,
-    in_audio=True,
-    client_settings=ClientSettings(media_stream_constraints={"audio": True, "video": False}),
-    audio_receiver_size=256,
-    rtc_configuration={},
-    sendback_audio=False,
-    audio_frame_callback=AudioProcessor().recv,
-)
-
-if st.button("🎙️ Transcribe Mic Audio"):
-    if not audio_queue.empty():
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio:
-            audio_data = b"".join(list(audio_queue.queue))
-            temp_audio.write(audio_data)
-            audio_path = temp_audio.name
-
-        with st.spinner("Transcribing..."):
-            try:
-                with open(audio_path, "rb") as f:
-                    transcript = openai.Audio.transcribe("whisper-1", f)
-                    st.session_state.user_msg = transcript['text']
-                    st.success(f"Recognized: {transcript['text']}")
-            except Exception as e:
-                st.error(f"Whisper failed: {str(e)}")
-    else:
-        st.warning("No audio captured. Try speaking after enabling mic.")
-
 # Text input
-user_msg = st.text_area("ਤੁਹਾਡੀ ਤਬੀਅਤ ਬਾਰੇ ਇੱਥੇ ਲਿਖੋ।", value=st.session_state.user_msg)
+user_msg = st.text_area("ਤੁਹਾਡੀ ਤਬੀਅਤ ਬਾਰੇ ਇੱਥੇ ਲਿਖੋ।")
+
+# Mic input
+st.markdown("🎙️ ਜਾਂ ਮਾਈਕ ਰਾਹੀਂ ਗੱਲ ਕਰੋ:")
+audio = audiorecorder("ਮਾਈਕ ਚਾਲੂ ਕਰੋ", "Recording...")
+
+# If audio is recorded, convert to text using Whisper
+if len(audio) > 0:
+    st.audio(audio.tobytes(), format="audio/wav")
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+        sf.write(f.name, audio, 44100)
+        with open(f.name, "rb") as audio_file:
+            try:
+                transcript = openai.Audio.transcribe("whisper-1", audio_file)
+                user_msg = transcript["text"]
+                st.success(f"Transcribed Message: {user_msg}")
+            except Exception as e:
+                st.error(f"Whisper transcription failed: {e}")
+                user_msg = ""
+
+# Send to chat if user typed or used mic
 if st.button("Send Message"):
     if user_msg.strip():
         payload = {
@@ -103,7 +76,7 @@ if st.button("Send Message"):
     else:
         st.warning("Message cannot be empty.")
 
-# -------------------- SIDEBAR TABS --------------------
+# ---------- SIDEBAR FUNCTIONS ----------
 if sidebar_choice == "🧪 Connect to App":
     st.sidebar.subheader("Test Connection to Lambda App")
     if st.sidebar.button("Test Connection"):
