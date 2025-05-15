@@ -8,7 +8,7 @@ HISTORY_API = f"{BASE_URL}/history"
 TEST_API = f"{BASE_URL}/test"
 
 # App settings
-st.set_page_config(page_title="German Homeopathy Clinic", layout="centered")
+st.set_page_config(page_title="German Homeopathy Clinic ⚕️", layout="centered")
 st.markdown("<h1 style='text-align: center; color: green;'>German Homeopathy Clinic by Hardev Singh</h1>", unsafe_allow_html=True)
 
 # Persistent session state for current user
@@ -23,7 +23,7 @@ sidebar_choice = st.sidebar.radio(
 )
 
 # Main area always shows Chat tab
-st.subheader("💬 ਫਿਜੀਸ਼ਨ ਨਾਲ ਗੱਲ ਕਰੋ।")
+st.subheader("💬 ਫਿਜੀਸ਼ਨ ਨਾਲ ਗੱਲ ਕਰੋ।s")
 user_msg = st.text_area("ਤੁਹਾਡੀ ਤਬੀਅਤ ਬਾਰੇ ਇੱਥੇ ਲਿਖੋ।")
 
 if st.button("Send Message"):
