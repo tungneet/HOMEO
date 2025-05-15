@@ -1,17 +1,11 @@
 import streamlit as st
 import requests
-from audio_recorder_streamlit import audio_recorder
-import openai
-import io
 
 # API endpoints
 BASE_URL = "https://2o02845p39.execute-api.ap-south-1.amazonaws.com/plane_BA"
 CHAT_API = f"{BASE_URL}/chat"
 HISTORY_API = f"{BASE_URL}/history"
 TEST_API = f"{BASE_URL}/test"
-
-# Set OpenAI API key (replace with your key)
-openai.api_key = st.secrets.get("OPENAI_API_KEY", "")
 
 # App settings
 st.set_page_config(page_title="German Homeopathy Clinic", layout="centered")
@@ -29,32 +23,14 @@ sidebar_choice = st.sidebar.radio(
 )
 
 # Main area always shows Chat tab
-st.subheader("💬 ਕੰਪਾਊਂਡਰ ਨਾਲ ਗੱਲ ਕਰੋ।")
-
-# Audio recorder widget
-audio_bytes = audio_recorder(text="ਮਾਈਕ ਚਾਲੂ ਕਰੋ, 2 ਸਕਿੰਟ ਬਾਅਦ ਰਿਕਾਰਡਿੰਗ ਸ਼ੁਰੂ ਹੋਵੇਗੀ...", recording_time=5000)
-
-# When audio is recorded, send to Whisper for transcription
-user_msg = ""
-if audio_bytes:
-    st.audio(audio_bytes, format="audio/wav")
-    with st.spinner("Processing audio with Whisper..."):
-        try:
-            audio_file = io.BytesIO(audio_bytes)
-            transcript = openai.Audio.transcribe("whisper-1", audio_file)
-            user_msg = transcript.get("text", "")
-            st.success(f"Transcribed Text: {user_msg}")
-        except Exception as e:
-            st.error(f"Whisper transcription error: {str(e)}")
-
-# Also allow manual text input, prefill with transcribed text if available
-user_msg_input = st.text_area("ਤੁਹਾਡੀ ਤਬੀਅਤ ਬਾਰੇ ਇੱਥੇ ਲਿਖੋ।", value=user_msg)
+st.subheader("💬 Chat with Assistant")
+user_msg = st.text_area("Type your message")
 
 if st.button("Send Message"):
-    if user_msg_input.strip():
+    if user_msg.strip():
         payload = {
             "user_id": st.session_state.current_user,
-            "user_message": user_msg_input.strip()
+            "user_message": user_msg.strip()
         }
         try:
             response = requests.post(CHAT_API, json=payload)
