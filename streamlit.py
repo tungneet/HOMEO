@@ -1,6 +1,6 @@
 import streamlit as st
 import requests
-from streamlit_audio_recorder import audio_recorder
+from audio_recorder_streamlit import audio_recorder
 import openai
 import io
 
