@@ -1,4 +1,4 @@
 streamlit
 requests
 openai
-streamlit_audio_recorder
+audio-recorder-streamlit
