@@ -5,7 +5,7 @@ import requests
 BASE_URL = "https://2o02845p39.execute-api.ap-south-1.amazonaws.com/plane_BA"
 CHAT_API = f"{BASE_URL}/chat"
 HISTORY_API = f"{BASE_URL}/history"
-TEST_API = f"{BASE_URL}/test"  # assumed /test route exists
+TEST_API = f"{BASE_URL}/test"
 
 # App settings
 st.set_page_config(page_title="German Homeopathy Clinic", layout="centered")
@@ -54,18 +54,19 @@ with tab3:
     if st.button("Send Message"):
         if user_msg.strip():
             payload = {
-                "user_input": {
-                    "user_id": st.session_state.current_user,
-                    "user_message": user_msg.strip()
-                }
+                "user_id": st.session_state.current_user,
+                "user_message": user_msg.strip()
             }
 
             try:
                 response = requests.post(CHAT_API, json=payload)
                 if response.status_code == 200:
                     res = response.json()
-                    st.markdown("**Assistant Response:**")
-                    st.success(res.get("assistant_response", "No response"))
+                    if "response" in res:
+                        st.markdown("**Assistant Response:**")
+                        st.success(res["response"])
+                    else:
+                        st.error(f"Error: {res.get('error', 'Unknown error')}")
                 else:
                     st.error(f"Error {response.status_code}: {response.text}")
             except Exception as e:
