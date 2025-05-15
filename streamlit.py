@@ -2,56 +2,90 @@ import streamlit as st
 import requests
 
 # API endpoints
-CHAT_API = "https://2o02845p39.execute-api.ap-south-1.amazonaws.com/plane_BA/chat"
-HISTORY_API_TEMPLATE = "https://2o02845p39.execute-api.ap-south-1.amazonaws.com/plane_BA/history/{user_id}"
+BASE_URL = "https://2o02845p39.execute-api.ap-south-1.amazonaws.com/plane_BA"
+CHAT_API = f"{BASE_URL}/chat"
+HISTORY_API = f"{BASE_URL}/history"
+TEST_API = f"{BASE_URL}/test"  # assumed /test route exists
 
-# App title
+# App settings
 st.set_page_config(page_title="German Homeopathy Clinic", layout="centered")
 st.markdown("<h1 style='text-align: center; color: green;'>German Homeopathy Clinic by Hardev Singh</h1>", unsafe_allow_html=True)
 
-# User inputs
-user_id = st.text_input("Enter your User ID", key="user_id")
-user_message = st.text_area("Type your message to the assistant", key="user_msg")
+# Persistent session state for current user
+if "current_user" not in st.session_state:
+    st.session_state.current_user = "user_1234"
 
-# Submit message
-if st.button("Send Message"):
-    if user_id and user_message:
-        payload = {
-            "user_id": user_id,
-            "user_message": user_message
-        }
+# Tabs
+tab1, tab2, tab3, tab4 = st.tabs(["🧪 Connect to App", "👤 User Management", "💬 Chat", "📜 History"])
+
+# -------- TAB 1: Test Connection --------
+with tab1:
+    st.subheader("Test Connection to Lambda App")
+    if st.button("Test Connection"):
         try:
-            response = requests.post(CHAT_API, json=payload)
+            response = requests.get(TEST_API)
             if response.status_code == 200:
-                result = response.json()
-                st.success("Assistant Response:")
-                st.markdown(f"> {result.get('assistant_response', 'No response')}")
+                st.success("Connection successful ✅")
+                st.json(response.json())
             else:
-                st.error(f"Error {response.status_code}: {response.text}")
+                st.error(f"Error: {response.status_code}")
+                st.text(response.text)
         except Exception as e:
-            st.error(f"Request failed: {str(e)}")
-    else:
-        st.warning("Please enter both User ID and Message.")
+            st.error(f"Connection failed: {str(e)}")
 
-# Fetch chat history
-if st.button("Show Chat History"):
-    if user_id:
-        try:
-            history_url = HISTORY_API_TEMPLATE.format(user_id=user_id)
-            response = requests.get(history_url)
-            if response.status_code == 200:
-                data = response.json()
-                if "history" in data:
-                    st.subheader("Chat History")
-                    for item in data["history"]:
-                        st.markdown(f"**You**: {item.get('user_message', '')}")
-                        st.markdown(f"**Assistant**: {item.get('assistant_response', '')}")
-                        st.markdown("---")
+# -------- TAB 2: User Management --------
+with tab2:
+    st.subheader("Switch User")
+    st.write(f"Current user: `{st.session_state.current_user}`")
+    new_user = st.text_input("Enter new user ID", placeholder="e.g. user_5678")
+
+    if st.button("Switch User"):
+        if new_user.strip():
+            st.session_state.current_user = new_user.strip()
+            st.success(f"Switched to: `{st.session_state.current_user}`")
+        else:
+            st.warning("Please enter a valid user ID.")
+
+# -------- TAB 3: Chat --------
+with tab3:
+    st.subheader("Chat with Assistant")
+    user_msg = st.text_area("Type your message")
+
+    if st.button("Send Message"):
+        if user_msg.strip():
+            payload = {
+                "user_id": st.session_state.current_user,
+                "user_message": user_msg.strip()
+            }
+            try:
+                response = requests.post(CHAT_API, json=payload)
+                if response.status_code == 200:
+                    res = response.json()
+                    st.markdown("**Assistant Response:**")
+                    st.success(res.get("assistant_response", "No response"))
                 else:
-                    st.warning("No chat history found.")
+                    st.error(f"Error {response.status_code}: {response.text}")
+            except Exception as e:
+                st.error(f"Request failed: {str(e)}")
+        else:
+            st.warning("Message cannot be empty.")
+
+# -------- TAB 4: History --------
+with tab4:
+    st.subheader("Chat History")
+    try:
+        history_url = f"{HISTORY_API}/{st.session_state.current_user}"
+        response = requests.get(history_url)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("history"):
+                for item in data["history"]:
+                    st.markdown(f"**You:** {item.get('user_message', '')}")
+                    st.markdown(f"**Assistant:** {item.get('assistant_response', '')}")
+                    st.markdown("---")
             else:
-                st.error(f"Error {response.status_code}: {response.text}")
-        except Exception as e:
-            st.error(f"Failed to fetch history: {str(e)}")
-    else:
-        st.warning("Please enter your User ID first.")
+                st.info("No history found for this user.")
+        else:
+            st.error(f"Error {response.status_code}: {response.text}")
+    except Exception as e:
+        st.error(f"Failed to fetch history: {str(e)}")
