@@ -1,50 +1,86 @@
 import streamlit as st
 import requests
 import openai
-import os
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, ClientSettings
+import av
+import tempfile
+import queue
 
+# -------------------- CONFIG --------------------
 # API endpoints
 BASE_URL = "https://2o02845p39.execute-api.ap-south-1.amazonaws.com/plane_BA"
 CHAT_API = f"{BASE_URL}/chat"
 HISTORY_API = f"{BASE_URL}/history"
 TEST_API = f"{BASE_URL}/test"
 
-# Set your OpenAI API Key
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# OpenAI API Key
+openai.api_key = st.secrets.get("OPENAI_API_KEY", "your-api-key-here")  # Replace or set via secrets
 
 # App settings
 st.set_page_config(page_title="German Homeopathy Clinic", layout="centered")
 st.markdown("<h1 style='text-align: center; color: green;'>German Homeopathy Clinic by Hardev Singh</h1>", unsafe_allow_html=True)
 
-# Persistent session state for current user
+# Session state
 if "current_user" not in st.session_state:
     st.session_state.current_user = "user_1234"
+if "user_msg" not in st.session_state:
+    st.session_state.user_msg = ""
 
-# Sidebar tabs (except chat)
+# -------------------- SIDEBAR NAV --------------------
 sidebar_choice = st.sidebar.radio(
     "Navigate",
     ("🧪 Connect to App", "👤 User Management", "📜 History"),
     index=0
 )
 
-# Main area always shows Chat tab
+# -------------------- MAIN CHAT --------------------
 st.subheader("💬 ਕੰਪਾਊਂਡਰ ਨਾਲ ਗੱਲ ਕਰੋ।")
 
-# Text + STT input
-user_msg = st.text_area("ਤੁਹਾਡੀ ਤਬੀਅਤ ਬਾਰੇ ਇੱਥੇ ਲਿਖੋ।")
+# Microphone input section
+st.markdown("**ਮਾਈਕ ਰਾਹੀਂ ਗੱਲ ਕਰੋ (Speak using mic):**")
 
-st.markdown("**ਵਾਯਸ ਮੈਸਜ ਭੇਜੋ (Voice Input):**")
-audio_file = st.file_uploader("ਆਡੀਓ ਅੱਪਲੋਡ ਕਰੋ (MP3/WAV/M4A)", type=["mp3", "wav", "m4a"])
+audio_queue = queue.Queue()
 
-if audio_file:
-    with st.spinner("Transcribing voice using Whisper..."):
-        try:
-            transcript = openai.Audio.transcribe("whisper-1", audio_file)
-            user_msg = transcript['text']
-            st.success(f"ਪਛਾਣਿਆ ਗਇਆ ਪਾਠ (Recognized Text): {user_msg}")
-        except Exception as e:
-            st.error(f"Voice recognition failed: {str(e)}")
+class AudioProcessor:
+    def __init__(self):
+        self.audio_buffer = b""
 
+    def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
+        pcm = frame.to_ndarray().tobytes()
+        audio_queue.put(pcm)
+        return frame
+
+webrtc_ctx = webrtc_streamer(
+    key="mic",
+    mode=WebRtcMode.SENDONLY,
+    in_audio=True,
+    client_settings=ClientSettings(media_stream_constraints={"audio": True, "video": False}),
+    audio_receiver_size=256,
+    rtc_configuration={},
+    sendback_audio=False,
+    audio_frame_callback=AudioProcessor().recv,
+)
+
+if st.button("🎙️ Transcribe Mic Audio"):
+    if not audio_queue.empty():
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio:
+            audio_data = b"".join(list(audio_queue.queue))
+            temp_audio.write(audio_data)
+            audio_path = temp_audio.name
+
+        with st.spinner("Transcribing..."):
+            try:
+                with open(audio_path, "rb") as f:
+                    transcript = openai.Audio.transcribe("whisper-1", f)
+                    st.session_state.user_msg = transcript['text']
+                    st.success(f"Recognized: {transcript['text']}")
+            except Exception as e:
+                st.error(f"Whisper failed: {str(e)}")
+    else:
+        st.warning("No audio captured. Try speaking after enabling mic.")
+
+# Text input
+user_msg = st.text_area("ਤੁਹਾਡੀ ਤਬੀਅਤ ਬਾਰੇ ਇੱਥੇ ਲਿਖੋ।", value=st.session_state.user_msg)
 if st.button("Send Message"):
     if user_msg.strip():
         payload = {
@@ -67,7 +103,7 @@ if st.button("Send Message"):
     else:
         st.warning("Message cannot be empty.")
 
-# Render sidebar tabs content
+# -------------------- SIDEBAR TABS --------------------
 if sidebar_choice == "🧪 Connect to App":
     st.sidebar.subheader("Test Connection to Lambda App")
     if st.sidebar.button("Test Connection"):
