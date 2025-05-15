@@ -1,12 +1,12 @@
 import streamlit as st
 import requests
-import time
 from audiorecorder import audiorecorder
+import tempfile
+import soundfile as sf
 import openai
-import io
 
-# Set your OpenAI API key here or via environment variable OPENAI_API_KEY
-openai.api_key = st.secrets.get("OPENAI_API_KEY") or "YOUR_OPENAI_API_KEY"
+# OpenAI Whisper API key
+openai.api_key = st.secrets.get("OPENAI_API_KEY", "your-openai-key")
 
 # API endpoints
 BASE_URL = "https://2o02845p39.execute-api.ap-south-1.amazonaws.com/plane_BA"
@@ -29,7 +29,54 @@ sidebar_choice = st.sidebar.radio(
     index=0
 )
 
-# ----- Sidebar content -----
+# ---------- MAIN CHAT AREA ----------
+st.subheader("💬 ਕੰਪਾਊਂਡਰ ਨਾਲ ਗੱਲ ਕਰੋ।")
+
+# Text input
+user_msg = st.text_area("ਤੁਹਾਡੀ ਤਬੀਅਤ ਬਾਰੇ ਇੱਥੇ ਲਿਖੋ।")
+
+# Mic input
+st.markdown("🎙️ ਜਾਂ ਮਾਈਕ ਰਾਹੀਂ ਗੱਲ ਕਰੋ:")
+audio = audiorecorder("ਮਾਈਕ ਚਾਲੂ ਕਰੋ", "Recording...")
+
+# If audio is recorded, convert to text using Whisper
+if len(audio) > 0:
+    st.audio(audio.tobytes(), format="audio/wav")
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+        sf.write(f.name, audio, 44100)
+        with open(f.name, "rb") as audio_file:
+            try:
+                transcript = openai.Audio.transcribe("whisper-1", audio_file)
+                user_msg = transcript["text"]
+                st.success(f"Transcribed Message: {user_msg}")
+            except Exception as e:
+                st.error(f"Whisper transcription failed: {e}")
+                user_msg = ""
+
+# Send to chat if user typed or used mic
+if st.button("Send Message"):
+    if user_msg.strip():
+        payload = {
+            "user_id": st.session_state.current_user,
+            "user_message": user_msg.strip()
+        }
+        try:
+            response = requests.post(CHAT_API, json=payload)
+            if response.status_code == 200:
+                res = response.json()
+                if "response" in res:
+                    st.markdown("**Assistant Response:**")
+                    st.success(res["response"])
+                else:
+                    st.error(f"Error: {res.get('error', 'Unknown error')}")
+            else:
+                st.error(f"Error {response.status_code}: {response.text}")
+        except Exception as e:
+            st.error(f"Request failed: {str(e)}")
+    else:
+        st.warning("Message cannot be empty.")
+
+# ---------- SIDEBAR FUNCTIONS ----------
 if sidebar_choice == "🧪 Connect to App":
     st.sidebar.subheader("Test Connection to Lambda App")
     if st.sidebar.button("Test Connection"):
@@ -76,78 +123,3 @@ elif sidebar_choice == "📜 History":
                 st.error(f"Error {response.status_code}: {response.text}")
         except Exception as e:
             st.error(f"Failed to fetch history: {str(e)}")
-
-# ----- Main area: Chat + Mic with STT -----
-st.subheader("💬 ਕੰਪਾਊਂਡਰ ਨਾਲ ਗੱਲ ਕਰੋ।")
-
-# 2-second auto mic delay logic
-if "wait_start" not in st.session_state:
-    st.session_state.wait_start = True
-    st.session_state.wait_start_time = time.time()
-
-if st.session_state.wait_start:
-    elapsed = time.time() - st.session_state.wait_start_time
-    st.write("🎙️ ਮਾਈਕ 2 ਸਕਿੰਟ ਵਿੱਚ ਸ਼ੁਰੂ ਹੋ ਜਾਵੇਗਾ ...")
-    if elapsed > 2:
-        st.session_state.wait_start = False
-        st.experimental_rerun()
-
-if not st.session_state.wait_start:
-    # Show audiorecorder widget
-    audio = audiorecorder("ਮਾਈਕ ਚਾਲੂ ਕਰੋ", "Recording...")
-
-    if len(audio) > 0:
-        st.audio(audio.tobytes(), format="audio/wav")
-        with st.spinner("ਅਕਸ਼ਰ ਬਦਲ ਰਹੇ ਹਾਂ (Transcribing)..."):
-            # convert audio bytes to file-like object
-            audio_file = io.BytesIO(audio.tobytes())
-
-            try:
-                transcript = openai.Audio.transcribe("whisper-1", audio_file)
-                user_msg = transcript["text"]
-                st.success(f"ਟ੍ਰਾਂਸਕ੍ਰਿਪਟ: {user_msg}")
-
-                # Prepare payload and send chat message automatically
-                payload = {
-                    "user_id": st.session_state.current_user,
-                    "user_message": user_msg.strip()
-                }
-                response = requests.post(CHAT_API, json=payload)
-                if response.status_code == 200:
-                    res = response.json()
-                    if "response" in res:
-                        st.markdown("**ਸਹਾਇਕ ਦੀ ਜਵਾਬ:**")
-                        st.success(res["response"])
-                    else:
-                        st.error(f"Error: {res.get('error', 'Unknown error')}")
-                else:
-                    st.error(f"Error {response.status_code}: {response.text}")
-
-            except Exception as e:
-                st.error(f"ਟ੍ਰਾਂਸਕ੍ਰਿਪਸ਼ਨ ਵਿੱਚ ਸਮੱਸਿਆ: {str(e)}")
-
-else:
-    # Also allow manual text input & send message button below mic UI
-    user_msg = st.text_area("ਤੁਹਾਡੀ ਤਬੀਅਤ ਬਾਰੇ ਇੱਥੇ ਲਿਖੋ।")
-
-    if st.button("Send Message"):
-        if user_msg.strip():
-            payload = {
-                "user_id": st.session_state.current_user,
-                "user_message": user_msg.strip()
-            }
-            try:
-                response = requests.post(CHAT_API, json=payload)
-                if response.status_code == 200:
-                    res = response.json()
-                    if "response" in res:
-                        st.markdown("**Assistant Response:**")
-                        st.success(res["response"])
-                    else:
-                        st.error(f"Error: {res.get('error', 'Unknown error')}")
-                else:
-                    st.error(f"Error {response.status_code}: {response.text}")
-            except Exception as e:
-                st.error(f"Request failed: {str(e)}")
-        else:
-            st.warning("Message cannot be empty.")
