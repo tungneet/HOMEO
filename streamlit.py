@@ -23,7 +23,7 @@ sidebar_choice = st.sidebar.radio(
 )
 
 # Main area always shows Chat tab
-st.subheader("💬 ਫਿਜੀਸ਼ਨ ਨਾਲ ਗੱਲ ਕਰੋ।")
+st.subheader("ਫਿਜੀਸ਼ਨ ਨਾਲ ਗੱਲ ਕਰੋ।")
 user_msg = st.text_area("ਤੁਹਾਡੀ ਤਬੀਅਤ ਬਾਰੇ ਇੱਥੇ ਲਿਖੋ।")
 
 if st.button("Send Message"):
@@ -37,7 +37,7 @@ if st.button("Send Message"):
             if response.status_code == 200:
                 res = response.json()
                 if "response" in res:
-                    st.markdown("**Assistant Response:**")
+                    st.markdown("**Response:**")
                     st.success(res["response"])
                 else:
                     st.error(f"Error: {res.get('error', 'Unknown error')}")
