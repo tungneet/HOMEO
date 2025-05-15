@@ -54,9 +54,12 @@ with tab3:
     if st.button("Send Message"):
         if user_msg.strip():
             payload = {
-                "user_id": st.session_state.current_user,
-                "user_message": user_msg.strip()
+                "user_input": {
+                    "user_id": st.session_state.current_user,
+                    "user_message": user_msg.strip()
+                }
             }
+
             try:
                 response = requests.post(CHAT_API, json=payload)
                 if response.status_code == 200:
