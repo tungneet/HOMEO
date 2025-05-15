@@ -1,18 +1,17 @@
 import streamlit as st
 import requests
-from audiorecorder import audiorecorder
-import tempfile
-import soundfile as sf
+from streamlit_audio_recorder import audio_recorder
 import openai
-
-# OpenAI Whisper API key
-openai.api_key = st.secrets.get("OPENAI_API_KEY", "your-openai-key")
+import io
 
 # API endpoints
 BASE_URL = "https://2o02845p39.execute-api.ap-south-1.amazonaws.com/plane_BA"
 CHAT_API = f"{BASE_URL}/chat"
 HISTORY_API = f"{BASE_URL}/history"
 TEST_API = f"{BASE_URL}/test"
+
+# Set OpenAI API key (replace with your key)
+openai.api_key = st.secrets.get("OPENAI_API_KEY", "")
 
 # App settings
 st.set_page_config(page_title="German Homeopathy Clinic", layout="centered")
@@ -29,36 +28,33 @@ sidebar_choice = st.sidebar.radio(
     index=0
 )
 
-# ---------- MAIN CHAT AREA ----------
+# Main area always shows Chat tab
 st.subheader("💬 ਕੰਪਾਊਂਡਰ ਨਾਲ ਗੱਲ ਕਰੋ।")
 
-# Text input
-user_msg = st.text_area("ਤੁਹਾਡੀ ਤਬੀਅਤ ਬਾਰੇ ਇੱਥੇ ਲਿਖੋ।")
+# Audio recorder widget
+audio_bytes = audio_recorder(text="ਮਾਈਕ ਚਾਲੂ ਕਰੋ, 2 ਸਕਿੰਟ ਬਾਅਦ ਰਿਕਾਰਡਿੰਗ ਸ਼ੁਰੂ ਹੋਵੇਗੀ...", recording_time=5000)
 
-# Mic input
-st.markdown("🎙️ ਜਾਂ ਮਾਈਕ ਰਾਹੀਂ ਗੱਲ ਕਰੋ:")
-audio = audiorecorder("ਮਾਈਕ ਚਾਲੂ ਕਰੋ", "Recording...")
+# When audio is recorded, send to Whisper for transcription
+user_msg = ""
+if audio_bytes:
+    st.audio(audio_bytes, format="audio/wav")
+    with st.spinner("Processing audio with Whisper..."):
+        try:
+            audio_file = io.BytesIO(audio_bytes)
+            transcript = openai.Audio.transcribe("whisper-1", audio_file)
+            user_msg = transcript.get("text", "")
+            st.success(f"Transcribed Text: {user_msg}")
+        except Exception as e:
+            st.error(f"Whisper transcription error: {str(e)}")
 
-# If audio is recorded, convert to text using Whisper
-if len(audio) > 0:
-    st.audio(audio.tobytes(), format="audio/wav")
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-        sf.write(f.name, audio, 44100)
-        with open(f.name, "rb") as audio_file:
-            try:
-                transcript = openai.Audio.transcribe("whisper-1", audio_file)
-                user_msg = transcript["text"]
-                st.success(f"Transcribed Message: {user_msg}")
-            except Exception as e:
-                st.error(f"Whisper transcription failed: {e}")
-                user_msg = ""
+# Also allow manual text input, prefill with transcribed text if available
+user_msg_input = st.text_area("ਤੁਹਾਡੀ ਤਬੀਅਤ ਬਾਰੇ ਇੱਥੇ ਲਿਖੋ।", value=user_msg)
 
-# Send to chat if user typed or used mic
 if st.button("Send Message"):
-    if user_msg.strip():
+    if user_msg_input.strip():
         payload = {
             "user_id": st.session_state.current_user,
-            "user_message": user_msg.strip()
+            "user_message": user_msg_input.strip()
         }
         try:
             response = requests.post(CHAT_API, json=payload)
@@ -76,7 +72,7 @@ if st.button("Send Message"):
     else:
         st.warning("Message cannot be empty.")
 
-# ---------- SIDEBAR FUNCTIONS ----------
+# Render sidebar tabs content
 if sidebar_choice == "🧪 Connect to App":
     st.sidebar.subheader("Test Connection to Lambda App")
     if st.sidebar.button("Test Connection"):
