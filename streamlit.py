@@ -9,7 +9,7 @@ TEST_API = f"{BASE_URL}/test"
 
 # App settings
 st.set_page_config(page_title="German Homeopathy Clinic ⚕️", layout="centered")
-st.markdown("<h1 style='text-align: center; color: green;'>German Homeopathy Clinic by Hardev Singh</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; color: green;'>⚕️German Homeopathy Clinic by Hardev Singh</h1>", unsafe_allow_html=True)
 
 # Persistent session state for current user
 if "current_user" not in st.session_state:
