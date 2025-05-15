@@ -23,7 +23,7 @@ sidebar_choice = st.sidebar.radio(
 )
 
 # Main area always shows Chat tab
-st.subheader("💬 ਫਿਜੀਸ਼ਨ ਨਾਲ ਗੱਲ ਕਰੋ।s")
+st.subheader("💬 ਫਿਜੀਸ਼ਨ ਨਾਲ ਗੱਲ ਕਰੋ।")
 user_msg = st.text_area("ਤੁਹਾਡੀ ਤਬੀਅਤ ਬਾਰੇ ਇੱਥੇ ਲਿਖੋ।")
 
 if st.button("Send Message"):
